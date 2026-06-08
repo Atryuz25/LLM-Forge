@@ -1,0 +1,10 @@
+{
+  "prompt_a": "Answer this question clearly: {question}",
+  "prompt_b": "You are an expert assistant. Be concise and precise. Question: {question}",
+  "test_cases": [
+    {"question": "What is machine learning?"},
+    {"question": "What is a neural network?"},
+    {"question": "What is overfitting?"}
+  ],
+  "model": "groq-llama"
+}

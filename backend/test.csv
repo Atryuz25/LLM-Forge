@@ -1,0 +1,3 @@
+question,ground_truth
+What is the main topic of this document?,Retrieval-Augmented Generation (RAG) which combines information retrieval with large language model generation
+What are the key conclusions?,RAG reduces hallucination compared to pure LLM generation and proper chunking and RAGAS evaluation are essential for production systems

@@ -1,0 +1,7 @@
+question,ground_truth
+What is the name of the candidate?,The candidate's name is Atul Krishna.
+What notable projects has Atul built?,Atul Krishna built LLMForge, a platform for evaluating and monitoring LLM applications.
+What technologies is Atul proficient in?,Atul is proficient in React, Next.js, Python, FastAPI, and integrating LLMs like Gemini and Groq.
+Does Atul have experience with vector databases?,Yes, Atul has experience using ChromaDB for building RAG pipelines.
+What was the primary focus of the LLMForge project?,The primary focus was to build a comprehensive dashboard for RAG pipeline ingestion, LLM evaluation using Ragas, prompt A/B testing, and latency monitoring.
+What makes Atul a strong candidate for an AI Engineering role?,Atul possesses full-stack expertise combined with practical experience building scalable LLM evaluation engines and RAG infrastructure.

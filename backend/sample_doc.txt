@@ -1,0 +1,29 @@
+Introduction to Retrieval-Augmented Generation (RAG)
+
+Retrieval-Augmented Generation (RAG) is a technique that combines information retrieval with large language model generation. It was introduced by Facebook AI Research in 2020. RAG systems first retrieve relevant documents from a knowledge base, then use those documents as context when generating answers.
+
+How RAG Works
+
+RAG systems have two main components: a retriever and a generator. The retriever searches a document store to find the most relevant passages for a given query. The generator, typically a large language model, then uses those retrieved passages as context to produce a grounded, accurate response.
+
+The retrieval step typically uses dense embeddings. Documents are chunked into smaller pieces, embedded into vectors, and stored in a vector database such as ChromaDB, Pinecone, or FAISS. At query time, the question is embedded into the same vector space, and the nearest chunks are retrieved using cosine similarity.
+
+Chunking Strategy
+
+Chunk size is a critical hyperparameter in RAG systems. Smaller chunks (256-512 tokens) produce more precise retrieval but may lose surrounding context. Larger chunks (1024-2048 tokens) preserve more context but may retrieve irrelevant content. Overlap between chunks (typically 10-20% of chunk size) prevents important context from being cut off at boundaries.
+
+Key Metrics for RAG Evaluation
+
+RAG systems are evaluated using several metrics from the RAGAS framework:
+- Faithfulness: measures whether the answer is grounded in the retrieved context
+- Answer Relevancy: measures how relevant the answer is to the question
+- Context Precision: measures whether retrieved chunks are relevant to the question
+- Context Recall: measures whether the retrieved context contains all necessary information
+
+Intended Audience
+
+This document is intended for machine learning engineers, AI developers, and data scientists who are building production LLM applications and want to understand how to implement and evaluate RAG pipelines.
+
+Key Conclusions
+
+The key conclusions from this document are: RAG significantly reduces hallucination compared to pure LLM generation, proper chunking strategy has a major impact on retrieval quality, and evaluation using RAGAS metrics is essential for production RAG systems. Organizations deploying LLMs in enterprise settings should adopt RAG as the primary architecture for knowledge-grounded question answering.

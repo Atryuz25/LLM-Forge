@@ -1,0 +1,6 @@
+question,ground_truth
+"What is LLMForge?","LLMForge is an advanced platform designed to orchestrate, evaluate, and monitor complex LLM workflows."
+"What are the key features?","A/B Prompt Testing, Real-time Monitoring, and Heuristic Evaluations."
+"Does it use Supabase?","Yes, the backend uses Supabase for telemetry storage."
+"What font does the UI use?","The UI uses the Inter font."
+"What color is the primary brand color?","The primary brand color is #6C63FF (purple)."
