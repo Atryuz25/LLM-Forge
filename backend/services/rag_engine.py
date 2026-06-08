@@ -1,7 +1,8 @@
 import os
 import time
 import logging
-import chromadb
+import uuid
+from supabase import create_client
 from sentence_transformers import SentenceTransformer
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -11,12 +12,10 @@ from services.monitor import log_query
 logger = logging.getLogger(__name__)
 
 embedder = SentenceTransformer("all-MiniLM-L6-v2")  # runs on CPU, free
-chroma   = chromadb.PersistentClient(path="./chroma_db")
 splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
 
-
-def get_or_create_collection(pipeline_id: str):
-    return chroma.get_or_create_collection(name=f"pipeline_{pipeline_id}")
+# Initialize Supabase Client
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
 def ingest_file(pipeline_id: str, file_path: str) -> int:
@@ -30,33 +29,59 @@ def ingest_file(pipeline_id: str, file_path: str) -> int:
     if not chunks:
         return 0
 
-    collection = get_or_create_collection(pipeline_id)
     texts      = [c.page_content for c in chunks]
-    offset     = collection.count()
-    ids        = [f"{pipeline_id}_{offset + i}" for i in range(len(texts))]
     embeddings = embedder.encode(texts).tolist()
 
-    collection.add(documents=texts, embeddings=embeddings, ids=ids)
+    # Batch insert into Supabase
+    rows = []
+    for txt, emb in zip(texts, embeddings):
+        rows.append({
+            "id": str(uuid.uuid4()),
+            "pipeline_id": pipeline_id,
+            "content": txt,
+            "embedding": emb
+        })
+    
+    # Insert in chunks of 100 to avoid request limits
+    for i in range(0, len(rows), 100):
+        try:
+            supabase.table("documents").insert(rows[i:i+100]).execute()
+        except Exception as e:
+            logger.error(f"Failed to insert vectors into Supabase: {e}")
+
     return len(chunks)
 
 
 async def query_pipeline(pipeline_id: str, question: str, model: str = "groq-llama", user_id: str = None) -> dict:
     start = time.time()
-    collection = get_or_create_collection(pipeline_id)
-    doc_count  = collection.count()
+    
+    q_embedding = embedder.encode(question).tolist()
+    
+    try:
+        # Call the Supabase RPC function for similarity search
+        res = supabase.rpc(
+            "match_documents", 
+            {
+                "query_embedding": q_embedding, 
+                "match_pipeline_id": pipeline_id, 
+                "match_count": 5
+            }
+        ).execute()
+        
+        results = res.data
+    except Exception as e:
+        logger.error(f"Supabase match_documents RPC failed: {e}")
+        results = []
 
-    if doc_count == 0:
+    if not results:
         return {
-            "answer":  "No documents have been ingested into this pipeline yet. Please upload documents first.",
+            "answer":  "No documents have been ingested into this pipeline yet, or search failed. Please upload documents first.",
             "sources": [],
             "model":   model,
         }
 
-    n_results   = min(5, doc_count)
-    q_embedding = embedder.encode([question]).tolist()
-    results     = collection.query(query_embeddings=q_embedding, n_results=n_results)
-    contexts    = results["documents"][0] if results["documents"] else []
-    context     = "\n\n".join(contexts)
+    contexts = [r["content"] for r in results]
+    context  = "\n\n".join(contexts)
 
     prompt = f"""Answer the question using ONLY the context below.
 If the answer isn't in the context, say "Not found in documents."
