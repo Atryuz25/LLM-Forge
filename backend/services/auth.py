@@ -2,7 +2,22 @@ import firebase_admin
 from firebase_admin import credentials, auth
 from fastapi import HTTPException, Header
 
-cred = credentials.Certificate("firebase_credentials.json")
+import os
+import json
+
+# Check if FIREBASE_CREDENTIALS is in environment (for deployment), else fallback to local file
+firebase_env = os.getenv("FIREBASE_CREDENTIALS")
+
+if firebase_env:
+    try:
+        cred_dict = json.loads(firebase_env)
+        cred = credentials.Certificate(cred_dict)
+    except Exception as e:
+        print(f"Failed to parse FIREBASE_CREDENTIALS env var: {e}")
+        cred = credentials.Certificate("firebase_credentials.json")
+else:
+    cred = credentials.Certificate("firebase_credentials.json")
+
 firebase_admin.initialize_app(cred)
 
 async def verify_token(authorization: str = Header(None)) -> dict:
