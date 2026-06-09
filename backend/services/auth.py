@@ -14,9 +14,12 @@ if firebase_env:
         cred = credentials.Certificate(cred_dict)
     except Exception as e:
         print(f"Failed to parse FIREBASE_CREDENTIALS env var: {e}")
-        cred = credentials.Certificate("firebase_credentials.json")
+        raise RuntimeError("FIREBASE_CREDENTIALS environment variable contains invalid JSON. Please paste the raw contents of firebase_credentials.json exactly as it appears.")
 else:
-    cred = credentials.Certificate("firebase_credentials.json")
+    try:
+        cred = credentials.Certificate("firebase_credentials.json")
+    except FileNotFoundError:
+        raise RuntimeError("Missing FIREBASE_CREDENTIALS environment variable. Please add it to your environment variables with the raw JSON contents of firebase_credentials.json.")
 
 firebase_admin.initialize_app(cred)
 
