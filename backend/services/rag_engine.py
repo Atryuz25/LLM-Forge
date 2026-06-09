@@ -2,7 +2,11 @@ import os
 import time
 import logging
 import uuid
+from dotenv import load_dotenv
 from supabase import create_client
+
+# Load environment variables first
+load_dotenv()
 from sentence_transformers import SentenceTransformer
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -18,7 +22,11 @@ splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
-def ingest_file(pipeline_id: str, file_path: str) -> int:
+def ingest_file(pipeline_id: str, file_path: str, original_filename: str = "unknown", user_id: str = "") -> int:
+    """
+    Reads a file (PDF or TXT), chunks it, embeds it, and stores in Supabase pgvector.
+    Returns the number of chunks stored.
+    """
     if file_path.lower().endswith(".pdf"):
         loader = PyPDFLoader(file_path)
     else:
@@ -36,10 +44,12 @@ def ingest_file(pipeline_id: str, file_path: str) -> int:
     rows = []
     for txt, emb in zip(texts, embeddings):
         rows.append({
-            "id": str(uuid.uuid4()),
+            "id":          str(uuid.uuid4()),
             "pipeline_id": pipeline_id,
-            "content": txt,
-            "embedding": emb
+            "file_name":   original_filename,
+            "user_id":     user_id,
+            "content":     txt,
+            "embedding":   emb
         })
     
     # Insert in chunks of 100 to avoid request limits

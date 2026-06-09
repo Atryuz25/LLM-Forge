@@ -229,10 +229,10 @@ export default function DashboardPage() {
                 <div key={i} className="h-16 w-full bg-surface-variant/30 animate-pulse rounded-lg"></div>
               ))
             ) : pipelines.length > 0 ? (
-              pipelines.slice(0, 3).map((p, i) => {
-                const pid = p.id || p;
+              pipelines.map((p: any, i) => {
+                const pid = typeof p === 'string' ? p : (p.id || p.name || String(p));
                 return (
-                  <div key={i} className="flex items-center justify-between p-md border border-outline-variant/30 rounded-lg bg-[#1b1b24] hover:border-primary/50 transition-colors group">
+                  <div key={pid || i} className="flex items-center justify-between p-md hover:bg-surface-variant/30 rounded-lg transition-colors border border-transparent hover:border-outline-variant/30 group">
                     <div className="flex items-center gap-md">
                       <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
                         <span className="material-symbols-outlined text-[20px]">database</span>

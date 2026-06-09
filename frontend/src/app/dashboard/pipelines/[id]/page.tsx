@@ -48,7 +48,7 @@ export default function PipelineQueryPage() {
     setIsSourcesExpanded(false);
     
     try {
-      const data = await api.queryPipeline(pipelineId, question, model);
+      const data = await api.queryPipeline(pipelineId as string, question, model);
       
       setResponse(data);
       

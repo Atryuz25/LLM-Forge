@@ -1,13 +1,15 @@
 """
-Eval Engine — Fast heuristic scoring (no external LLM calls needed for scoring).
+Eval Engine — Heuristic + RAGAS scoring.
 Runs async parallel evaluation across multiple models and returns a leaderboard.
+If RAGAS fails, falls back to a fast keyword-overlap heuristic that always produces
+meaningful (non-zero) scores.
 """
 import asyncio
 import time
 import csv
 import io
-import math
 import re
+import math
 import logging
 from typing import Any
 
@@ -15,13 +17,45 @@ logger = logging.getLogger(__name__)
 
 import pandas as pd
 from datasets import Dataset
-from ragas import evaluate
-from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
 import nest_asyncio
 nest_asyncio.apply()
 
 from services.rag_engine import query_pipeline
 from services.llm_client import MODELS
+
+
+# ─── Heuristic scoring fallback ───────────────────────────────────────────────
+def _token_overlap(a: str, b: str) -> float:
+    """F1-style token overlap between two strings."""
+    if not a or not b:
+        return 0.0
+    a_toks = set(re.sub(r"[^\w\s]", "", a.lower()).split())
+    b_toks = set(re.sub(r"[^\w\s]", "", b.lower()).split())
+    if not a_toks or not b_toks:
+        return 0.0
+    common = a_toks & b_toks
+    precision = len(common) / len(a_toks)
+    recall    = len(common) / len(b_toks)
+    if precision + recall == 0:
+        return 0.0
+    return round(2 * precision * recall / (precision + recall), 3)
+
+def _heuristic_scores(answer: str, ground_truth: str, contexts: list[str]) -> dict:
+    """Return approximate RAGAS-like scores using text overlap heuristics."""
+    ctx_combined = " ".join(contexts)
+    faithfulness      = _token_overlap(answer, ctx_combined)
+    answer_relevancy  = _token_overlap(answer, ground_truth)
+    context_precision = _token_overlap(ctx_combined, ground_truth)
+    context_recall    = _token_overlap(ctx_combined, ground_truth)
+    avg = round((faithfulness + answer_relevancy + context_precision + context_recall) / 4, 3)
+    return {
+        "faithfulness":      faithfulness,
+        "answer_relevancy":  answer_relevancy,
+        "context_precision": context_precision,
+        "context_recall":    context_recall,
+        "avg_score":         avg,
+    }
+
 
 async def run_full_eval(
     pipeline_id: str, test_cases: list[dict], models: list[str]
@@ -31,113 +65,132 @@ async def run_full_eval(
     async def process_model(model: str):
         async with semaphore:
             # 1. Run all queries for this model
-            tasks = []
-            for tc in test_cases:
-                tasks.append(query_pipeline(pipeline_id, tc["question"], model))
-            
+            tasks = [query_pipeline(pipeline_id, tc["question"], model) for tc in test_cases]
+
             start = time.time()
             query_results = await asyncio.gather(*tasks, return_exceptions=True)
-            latency = round((time.time() - start) / len(test_cases), 3) if test_cases else 0
+            latency = round((time.time() - start) / max(len(test_cases), 1), 3)
 
-            questions = []
-            answers = []
-            contexts = []
+            questions    = []
+            answers      = []
+            contexts     = []
             ground_truths = []
             clean_results = []
-            errors = []
+            errors       = []
 
             for i, tc in enumerate(test_cases):
                 res = query_results[i]
                 if isinstance(res, Exception):
-                    logger.error(f"Error for model {model}: {res}")
+                    logger.error(f"Error for model {model} q={i}: {res}")
                     errors.append({"model": model, "question": tc["question"], "error": str(res)})
                     continue
-                
-                ans = res.get("answer", "")
-                srcs = res.get("sources", [])
-                if not srcs:
-                    srcs = [""]
-                
+
+                ans  = res.get("answer", "")
+                srcs = res.get("sources", []) or [""]
+
                 questions.append(tc["question"])
                 answers.append(ans)
                 contexts.append(srcs)
                 ground_truths.append(tc["ground_truth"])
-                
+
                 clean_results.append({
-                    "model": model,
+                    "model":    model,
                     "question": tc["question"],
-                    "answer": ans,
-                    "sources": srcs,
-                    "latency": latency
+                    "answer":   ans,
+                    "sources":  srcs,
+                    "latency":  latency,
                 })
 
             if not questions:
                 return clean_results, errors, None
 
-            dataset = Dataset.from_dict({
-                "question": questions,
-                "answer": answers,
-                "contexts": contexts,
-                "ground_truth": ground_truths
-            })
-
-            # Run Ragas evaluation
-            from langchain_huggingface import HuggingFaceEmbeddings
-            evaluator_llm = MODELS["gemini-pro"]
-            evaluator_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-
+            # 2. Try RAGAS evaluation first
+            ragas_ok = False
             try:
-                score = evaluate(
+                from ragas import evaluate
+                from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+                from langchain_huggingface import HuggingFaceEmbeddings
+
+                evaluator_llm        = MODELS["gemini-flash"]   # use flash — more reliable for RAGAS judge
+                evaluator_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+                dataset = Dataset.from_dict({
+                    "question":    questions,
+                    "answer":      answers,
+                    "contexts":    contexts,
+                    "ground_truth": ground_truths
+                })
+
+                score    = evaluate(
                     dataset,
                     metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
                     llm=evaluator_llm,
                     embeddings=evaluator_embeddings,
-                    raise_exceptions=False
+                    raise_exceptions=False,
                 )
-                
                 score_df = score.to_pandas()
+
+                def safe(df, row, col):
+                    v = df.iloc[row].get(col, float("nan"))
+                    return round(float(v), 3) if not (v != v) else 0.0  # nan check
+
                 for i, r in enumerate(clean_results):
-                    r["faithfulness"] = round(score_df.iloc[i]["faithfulness"], 3) if not pd.isna(score_df.iloc[i].get("faithfulness", float('nan'))) else 0.0
-                    r["answer_relevancy"] = round(score_df.iloc[i]["answer_relevancy"], 3) if not pd.isna(score_df.iloc[i].get("answer_relevancy", float('nan'))) else 0.0
-                    r["context_precision"] = round(score_df.iloc[i]["context_precision"], 3) if not pd.isna(score_df.iloc[i].get("context_precision", float('nan'))) else 0.0
-                    r["context_recall"] = round(score_df.iloc[i]["context_recall"], 3) if not pd.isna(score_df.iloc[i].get("context_recall", float('nan'))) else 0.0
-                    r["avg_score"] = round((r["faithfulness"] + r["answer_relevancy"] + r["context_precision"] + r["context_recall"]) / 4, 3)
+                    r["faithfulness"]      = safe(score_df, i, "faithfulness")
+                    r["answer_relevancy"]  = safe(score_df, i, "answer_relevancy")
+                    r["context_precision"] = safe(score_df, i, "context_precision")
+                    r["context_recall"]    = safe(score_df, i, "context_recall")
+                    r["avg_score"]         = round((r["faithfulness"] + r["answer_relevancy"] + r["context_precision"] + r["context_recall"]) / 4, 3)
 
                 model_lb = {
-                    "model": model,
-                    "runs": len(clean_results),
-                    "faithfulness": round(score.get("faithfulness", 0.0), 3),
-                    "answer_relevancy": round(score.get("answer_relevancy", 0.0), 3),
-                    "context_precision": round(score.get("context_precision", 0.0), 3),
-                    "context_recall": round(score.get("context_recall", 0.0), 3),
-                    "avg_score": 0.0,
-                    "avg_latency": latency
+                    "model":             model,
+                    "runs":              len(clean_results),
+                    "faithfulness":      round(float(score.get("faithfulness", 0.0)), 3),
+                    "answer_relevancy":  round(float(score.get("answer_relevancy", 0.0)), 3),
+                    "context_precision": round(float(score.get("context_precision", 0.0)), 3),
+                    "context_recall":    round(float(score.get("context_recall", 0.0)), 3),
+                    "avg_latency":       latency,
+                    "scoring_method":    "ragas",
                 }
                 model_lb["avg_score"] = round((model_lb["faithfulness"] + model_lb["answer_relevancy"] + model_lb["context_precision"] + model_lb["context_recall"]) / 4, 3)
+                ragas_ok = True
+                logger.info(f"RAGAS scoring succeeded for model={model}")
+
             except Exception as e:
-                logger.error(f"RAGAS evaluation failed for {model}: {e}")
-                # Fallback to zero if evaluation crashes completely
-                for r in clean_results:
-                    r["faithfulness"] = 0.0
-                    r["answer_relevancy"] = 0.0
-                    r["context_precision"] = 0.0
-                    r["context_recall"] = 0.0
-                    r["avg_score"] = 0.0
+                logger.warning(f"RAGAS failed for model={model}: {e} — falling back to heuristics")
+
+            # 3. Fallback: heuristic scoring
+            if not ragas_ok:
+                all_f, all_ar, all_cp, all_cr = [], [], [], []
+                for i, r in enumerate(clean_results):
+                    h = _heuristic_scores(r["answer"], ground_truths[i], contexts[i])
+                    r.update(h)
+                    all_f.append(h["faithfulness"])
+                    all_ar.append(h["answer_relevancy"])
+                    all_cp.append(h["context_precision"])
+                    all_cr.append(h["context_recall"])
+
+                def avg(lst): return round(sum(lst) / len(lst), 3) if lst else 0.0
+
                 model_lb = {
-                    "model": model, "runs": len(clean_results),
-                    "faithfulness": 0.0, "answer_relevancy": 0.0,
-                    "context_precision": 0.0, "context_recall": 0.0,
-                    "avg_score": 0.0, "avg_latency": latency
+                    "model":             model,
+                    "runs":              len(clean_results),
+                    "faithfulness":      avg(all_f),
+                    "answer_relevancy":  avg(all_ar),
+                    "context_precision": avg(all_cp),
+                    "context_recall":    avg(all_cr),
+                    "avg_score":         avg([avg(all_f), avg(all_ar), avg(all_cp), avg(all_cr)]),
+                    "avg_latency":       latency,
+                    "scoring_method":    "heuristic",
                 }
 
             return clean_results, errors, model_lb
 
-    tasks = [process_model(m) for m in models]
+    tasks        = [process_model(m) for m in models]
     model_results = await asyncio.gather(*tasks)
 
     final_results = []
-    final_errors = []
-    leaderboard = []
+    final_errors  = []
+    leaderboard   = []
 
     for clean_res, errs, lb in model_results:
         final_results.extend(clean_res)
@@ -148,9 +201,9 @@ async def run_full_eval(
     leaderboard = sorted(leaderboard, key=lambda x: x["avg_score"], reverse=True)
 
     return {
-        "results": final_results,
-        "errors": final_errors,
-        "leaderboard": leaderboard
+        "results":     final_results,
+        "errors":      final_errors,
+        "leaderboard": leaderboard,
     }
 
 

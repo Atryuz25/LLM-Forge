@@ -57,7 +57,7 @@ async def log_quality(log_id: str, faithfulness: float, relevancy: float):
     except Exception as e:
         print(f"Failed to log quality to Supabase: {e}")
 
-async def get_dashboard(pipeline_id: str) -> dict:
+async def get_dashboard(pipeline_id: str, user_id: str = "") -> dict:
     # Last 7 days of logs
     since = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
@@ -65,6 +65,8 @@ async def get_dashboard(pipeline_id: str) -> dict:
         query = supabase.table("query_logs").select("*").gte("created_at", since).order("created_at", desc=True)
         if pipeline_id != "all":
             query = query.eq("pipeline_id", pipeline_id)
+        if user_id:
+            query = query.eq("user_id", user_id)
         
         logs = query.execute().data
     except Exception as e:
@@ -72,7 +74,15 @@ async def get_dashboard(pipeline_id: str) -> dict:
         return {"total_queries": 0, "pipeline_id": pipeline_id, "error": str(e)}
 
     if not logs:
-        return {"total_queries": 0, "pipeline_id": pipeline_id}
+        return {
+            "total_queries": 0, 
+            "pipeline_id": pipeline_id,
+            "avg_latency": 0.0,
+            "total_cost_usd": 0.0,
+            "avg_score": 0.0,
+            "model_breakdown": {},
+            "daily_trend": {}
+        }
 
     total     = len(logs)
     avg_lat   = round(sum(l["latency"] or 0 for l in logs) / total, 3)

@@ -155,11 +155,12 @@ export default function MonitorPage() {
               onChange={(e) => setSelectedPipeline(e.target.value)}
               className="bg-transparent text-white font-code-md text-sm outline-none cursor-pointer"
             >
-              {pipelines.map(p => {
-                const id = p.id || p;
-                return <option key={id} value={id} className="bg-[#111118]">{p.name || id}</option>;
-              })}
-              <option value="all" className="bg-[#111118]">Global (All Pipelines)</option>
+              {pipelines.map((p: any) => {
+                const id = typeof p === 'string' ? p : (p.id || p.name || String(p));
+                return (
+                  <option key={id} value={id}>{p.name || id}</option>
+                );
+              })}<option value="all" className="bg-[#111118]">Global (All Pipelines)</option>
             </select>
           </div>
           
@@ -304,9 +305,9 @@ export default function MonitorPage() {
                       ))}
                     </Pie>
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#1b1b24', border: '1px solid #2e2e38', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
+                      contentStyle={{ backgroundColor: '#1b1b24', border: '1px solid #2e2e3d', borderRadius: '8px' }}
                       itemStyle={{ color: '#fff' }}
-                      formatter={(val: any, name: string) => [`${val} queries`, name]}
+                      formatter={(val: any, name: any) => [`${val} queries`, name]}
                     />
                   </PieChart>
                 </ResponsiveContainer>

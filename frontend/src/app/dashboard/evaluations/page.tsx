@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { useEval } from "@/context/EvalContext";
+import { useAppState } from "@/context/AppStateContext";
 
 const AVAILABLE_MODELS = [
   { id: "groq-llama", label: "Llama 3.3 70B (Fast)" },
@@ -18,52 +19,42 @@ const AVAILABLE_MODELS = [
 const COLORS = ['#6C63FF', '#00D4AA', '#F59E0B'];
 
 export default function EvaluationsPage() {
-  const [pipelines, setPipelines] = useState<any[]>([]);
-  const [pipelineId, setPipelineId] = useState("");
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  
-  // CSV Upload state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // ── Persistent state via AppStateContext (survives page navigation) ──────────
+  const { pipelines, pipelinesLoaded, fetchPipelines, evalState, setEvalState } = useAppState();
+  const { isEvaluating, evalProgress, evalResults: results, runEvaluation } = useEval();
+
+  const { pipelineId, selectedModels, selectedFile, csvPreview } = evalState;
+  const updateEval = (patch: Partial<typeof evalState>) =>
+    setEvalState(prev => ({ ...prev, ...patch }));
+
+  // Local-only transient UI state
   const [isDragging, setIsDragging] = useState(false);
-  const [csvPreview, setCsvPreview] = useState<any[]>([]);
   const [fileError, setFileError] = useState("");
+  const [expandedQuestions, setExpandedQuestions] = useState<Record<number, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Execution state
-  const { isEvaluating, evalProgress, evalResults: results, runEvaluation } = useEval();
-  const [expandedQuestions, setExpandedQuestions] = useState<Record<number, boolean>>({});
-
+  // Fetch pipelines once when user is ready (uses cached if already loaded)
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        fetchPipelines();
-      }
+      if (user && !pipelinesLoaded) fetchPipelines();
     });
     return () => unsubscribe();
-  }, []);
+  }, [pipelinesLoaded]);
 
-  const fetchPipelines = async () => {
-    try {
-      const data = await api.listPipelines();
-      if (data && data.pipelines) {
-        setPipelines(data.pipelines);
-        if (data.pipelines.length > 0) {
-          setPipelineId(data.pipelines[0].id || data.pipelines[0]);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch pipelines", error);
+  // Auto-select first pipeline if none chosen yet
+  useEffect(() => {
+    if (pipelines.length > 0 && !pipelineId) {
+      updateEval({ pipelineId: pipelines[0].id || String(pipelines[0]) });
     }
-  };
+  }, [pipelines]);
 
   const toggleModel = (id: string) => {
-    setSelectedModels(prev => {
-      if (prev.includes(id)) return prev.filter(m => m !== id);
-      if (prev.length >= 3) {
-        toast.error("Max 3 models at a time");
-        return prev;
-      }
-      return [...prev, id];
+    updateEval({
+      selectedModels: selectedModels.includes(id)
+        ? selectedModels.filter(m => m !== id)
+        : selectedModels.length >= 3
+          ? (toast.error("Max 3 models at a time"), selectedModels)
+          : [...selectedModels, id]
     });
   };
 
@@ -75,21 +66,18 @@ export default function EvaluationsPage() {
       const lines = text.split('\n').filter(l => l.trim().length > 0);
       if (lines.length < 2) {
         setFileError("CSV must contain headers and at least one row");
-        setSelectedFile(null);
+        updateEval({ selectedFile: null, csvPreview: [] });
         return;
       }
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
       if (!headers.includes('question') || !headers.includes('ground_truth')) {
         setFileError("CSV must have 'question' and 'ground_truth' columns");
-        setSelectedFile(null);
+        updateEval({ selectedFile: null, csvPreview: [] });
         return;
       }
-      
       const qIdx = headers.indexOf('question');
       const gIdx = headers.indexOf('ground_truth');
-      
       const parsed = lines.slice(1, 4).map(line => {
-        // Simple CSV parse handling basic quotes
         const regex = /(".*?"|[^",\s]+)(?=\s*,|\s*$)/g;
         const cols = line.match(regex) || line.split(',');
         return {
@@ -97,9 +85,7 @@ export default function EvaluationsPage() {
           ground_truth: cols[gIdx]?.replace(/^"|"$/g, '') || ''
         };
       });
-      
-      setCsvPreview(parsed);
-      setSelectedFile(file);
+      updateEval({ csvPreview: parsed, selectedFile: file });
       toast.success(`✅ ${file.name} — ${lines.length - 1} questions loaded`);
     };
     reader.readAsText(file);
@@ -198,13 +184,14 @@ export default function EvaluationsPage() {
             <label className="font-label-caps text-xs text-on-surface-variant uppercase mb-sm block">1. Select Pipeline</label>
             <select 
               value={pipelineId}
-              onChange={(e) => setPipelineId(e.target.value)}
+              onChange={(e) => updateEval({ pipelineId: e.target.value })}
               className="w-full bg-[#1f1f28] border border-[#1E1E2E] focus:border-primary focus:ring-1 focus:ring-primary/50 rounded-md px-3 py-3 text-white outline-none font-code-md text-sm cursor-pointer"
             >
               {pipelines.length === 0 ? <option>Loading...</option> : null}
-              {pipelines.map(p => (
-                <option key={p.id || p} value={p.id || p}>{p.id || p}</option>
-              ))}
+              {pipelines.map((p: any) => {
+                const pid = typeof p === 'string' ? p : (p.id || p.name || String(p));
+                return <option key={pid} value={pid}>{pid}</option>
+              })}
             </select>
             {pipelineId && (
               <div className="mt-sm font-label-caps text-[10px] text-primary bg-primary/10 border border-primary/20 px-2 py-1 rounded inline-block">

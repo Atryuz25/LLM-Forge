@@ -72,7 +72,19 @@ const api = {
   getPromptHistory: async () => {
     const res = await axiosInstance.get(`/prompt/history`);
     return res.data;
-  }
+  },
+
+  deletePipeline: async (pipelineId: string) => {
+    const res = await axiosInstance.delete(`/pipeline/delete/${pipelineId}`);
+    return res.data;
+  },
+
+  deleteFileFromPipeline: async (pipelineId: string, fileName: string) => {
+    const res = await axiosInstance.delete(`/pipeline/delete/${pipelineId}/file`, {
+      data: { file_name: fileName }
+    });
+    return res.data;
+  },
 };
 
 export default api;

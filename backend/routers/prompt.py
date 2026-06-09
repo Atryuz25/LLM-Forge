@@ -13,15 +13,18 @@ class ABTestRequest(BaseModel):
 
 @router.post("/ab-test")
 async def run_ab_test(body: ABTestRequest, user: dict = Depends(verify_token)):
+    user_id = user.get("uid") or user.get("user_id") or ""
     result = await ab_test(
         body.prompt_a,
         body.prompt_b,
         body.test_cases,
-        body.model
+        body.model,
+        user_id
     )
     return result
 
 @router.get("/history")
 async def get_history(user: dict = Depends(verify_token)):
-    history = await get_ab_test_history()
+    user_id = user.get("uid") or user.get("user_id") or ""
+    history = await get_ab_test_history(user_id)
     return {"history": history}
