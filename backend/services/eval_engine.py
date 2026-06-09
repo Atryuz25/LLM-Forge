@@ -21,7 +21,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 from services.rag_engine import query_pipeline
-from services.llm_client import MODELS
+from services.llm_client import get_models
 
 
 # ─── Heuristic scoring fallback ───────────────────────────────────────────────
@@ -111,7 +111,7 @@ async def run_full_eval(
                 from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
                 from langchain_huggingface import HuggingFaceEmbeddings
 
-                evaluator_llm        = MODELS["gemini-flash"]   # use flash — more reliable for RAGAS judge
+                evaluator_llm        = get_models()["gemini-flash"]   # use flash — more reliable for RAGAS judge
                 evaluator_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
                 dataset = Dataset.from_dict({

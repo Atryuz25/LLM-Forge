@@ -1,6 +1,5 @@
 import asyncio
 import time
-import mlflow
 from services.llm_client import call_llm
 
 async def run_prompt_version(
@@ -72,6 +71,7 @@ async def ab_test(
 
     # Track in MLflow
     try:
+        import mlflow
         with mlflow.start_run(run_name="prompt_ab_test"):
             mlflow.log_param("model", model)
             mlflow.log_param("test_cases", len(test_cases))
