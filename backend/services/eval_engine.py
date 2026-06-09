@@ -15,11 +15,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-import pandas as pd
-from datasets import Dataset
-import nest_asyncio
-nest_asyncio.apply()
-
 from services.rag_engine import query_pipeline
 from services.llm_client import get_models
 
@@ -107,9 +102,14 @@ async def run_full_eval(
             # 2. Try RAGAS evaluation first
             ragas_ok = False
             try:
+                import nest_asyncio
+                nest_asyncio.apply()
+                
                 from ragas import evaluate
                 from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
                 from langchain_huggingface import HuggingFaceEmbeddings
+                from datasets import Dataset
+                import pandas as pd
 
                 evaluator_llm        = get_models()["gemini-flash"]   # use flash — more reliable for RAGAS judge
                 evaluator_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
