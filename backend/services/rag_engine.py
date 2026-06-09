@@ -15,8 +15,15 @@ from services.monitor import log_query
 
 logger = logging.getLogger(__name__)
 
-embedder = SentenceTransformer("all-MiniLM-L6-v2")  # runs on CPU, free
+_embedder = None
 splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+
+def get_embedder():
+    global _embedder
+    if _embedder is None:
+        logger.info("Loading SentenceTransformer model for the first time...")
+        _embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embedder
 
 # Initialize Supabase Client
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
@@ -38,7 +45,7 @@ def ingest_file(pipeline_id: str, file_path: str, original_filename: str = "unkn
         return 0
 
     texts      = [c.page_content for c in chunks]
-    embeddings = embedder.encode(texts).tolist()
+    embeddings = get_embedder().encode(texts).tolist()
 
     # Batch insert into Supabase
     rows = []
@@ -65,7 +72,7 @@ def ingest_file(pipeline_id: str, file_path: str, original_filename: str = "unkn
 async def query_pipeline(pipeline_id: str, question: str, model: str = "groq-llama", user_id: str = None) -> dict:
     start = time.time()
     
-    q_embedding = embedder.encode(question).tolist()
+    q_embedding = get_embedder().encode(question).tolist()
     
     try:
         # Call the Supabase RPC function for similarity search
