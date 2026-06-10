@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
+import { signInWithRedirect, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/components/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -14,6 +15,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      router.push("/dashboard");
+    }
+  }, [user, router]);
 
   useEffect(() => {
     const container = document.getElementById('particles');
@@ -58,9 +66,7 @@ export default function LoginPage() {
       setIsLoading(true);
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      toast.success("Successfully logged in!");
-      router.push("/dashboard");
+      await signInWithRedirect(auth, provider);
     } catch (error: any) {
       toast.error(error.message || "Failed to log in with Google");
     } finally {
