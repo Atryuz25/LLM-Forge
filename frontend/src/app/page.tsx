@@ -57,7 +57,7 @@ export default function LandingPage() {
                 <div className="w-3 h-3 rounded-full bg-accent/50"></div>
               </div>
               <div className="w-full h-[500px] bg-card relative overflow-hidden">
-                 <img src="https://lh3.googleusercontent.com/aida/AP1WRLsFStx0uhkfudh9i59cP7r39q8za96s2Nwo8xMtND-cuPsOB5WoxtQau8FJ3V_fSZx8gJ6yNOcflNPmcJrnfWv2RnjrGl0ydJWCjnv1S4RMGYtPtqzaxMg1qjgpYkQZdu__He_2jyDKRXuComho88VL1kMzBsjshNNOK2a1QXHyMoxpUmWrnFt4RxNOArkggFtVCLEBYkattNcCh31xxtobf0VLIf6Rp9BW9mkmfTUObptQkES927z8KBI" alt="LLMForge Dashboard Mockup" className="absolute inset-0 w-full h-full object-cover" />
+                 <img src="/dashboard_mockup.png" alt="LLMForge Dashboard Mockup" className="absolute inset-0 w-full h-full object-cover" />
               </div>
             </div>
           </div>
