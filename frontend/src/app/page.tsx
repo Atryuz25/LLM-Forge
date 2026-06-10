@@ -17,7 +17,7 @@ export default function LandingPage() {
           <a className="text-on-surface-variant hover:text-white transition-colors hover:bg-surface-variant/50 duration-200 px-3 py-2 rounded-md" href="#stack">Stack</a>
         </div>
         <div>
-          <Link href="/login">
+          <Link href="/register">
             <button className="bg-primary hover:bg-primary/90 text-white font-label-caps text-label-caps px-4 py-2 rounded-full transition-colors font-bold shadow-[0_0_15px_rgba(108,99,255,0.3)]">
               Get Started
             </button>
@@ -38,7 +38,7 @@ export default function LandingPage() {
             Stop battling brittle prompts and blind deployments. LLMForge provides the engineering console for production-grade pipelines, systematic evaluations, and real-time monitoring.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 mb-20">
-            <Link href="/login">
+            <Link href="/register">
               <button className="bg-primary hover:bg-primary/90 text-white font-body-md text-body-md px-8 py-3 rounded-md transition-all font-bold shadow-[0_0_20px_rgba(108,99,255,0.4)] hover:shadow-[0_0_30px_rgba(108,99,255,0.6)]">
                 Get Started Free
               </button>

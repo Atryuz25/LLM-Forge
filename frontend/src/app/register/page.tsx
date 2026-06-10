@@ -8,7 +8,7 @@ import { useAuth } from "@/components/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -82,8 +82,8 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, email, password);
-      toast.success("Successfully logged in!");
+      await createUserWithEmailAndPassword(auth, email, password);
+      toast.success("Account created successfully!");
       router.push("/dashboard");
     } catch (error: any) {
       toast.error(error.message || "Authentication failed");
@@ -150,8 +150,6 @@ export default function LoginPage() {
                 />
                 <span className="text-sm text-zinc-400 group-hover:text-white transition-colors">Remember me</span>
               </label>
-              
-              <a href="#" className="text-sm text-primary hover:text-primary/80 transition-colors">Forgot password?</a>
             </div>
 
             <button 
@@ -159,7 +157,7 @@ export default function LoginPage() {
               disabled={isLoading}
               className="w-full mt-2 flex items-center justify-center py-3 px-6 bg-primary hover:bg-primary/90 text-white rounded-md font-semibold transition-all shadow-[0_0_20px_rgba(108,99,255,0.3)] disabled:opacity-70"
             >
-              {isLoading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : "Sign In"}
+              {isLoading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : "Create Account"}
             </button>
           </form>
 
@@ -189,9 +187,9 @@ export default function LoginPage() {
               <span className="text-base font-semibold text-white">Google</span>
             </button>
             <p className="text-sm text-zinc-400 text-center mt-2">
-              Don't have an account?{" "}
-              <Link href="/register" className="text-primary hover:text-primary/80 transition-colors font-medium">
-                Register here
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary hover:text-primary/80 transition-colors font-medium">
+                Sign in
               </Link>
             </p>
           </div>
