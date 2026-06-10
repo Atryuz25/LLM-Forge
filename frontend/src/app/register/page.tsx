@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const { user } = useAuth();
 
@@ -75,8 +76,12 @@ export default function RegisterPage() {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error("Please enter email and password");
+    if (!email || !password || !confirmPassword) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match");
       return;
     }
     try {
@@ -133,6 +138,19 @@ export default function RegisterPage() {
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-[#1f1f28] border border-[#1E1E2E] focus:border-primary focus:ring-1 focus:ring-primary/50 rounded-md px-4 py-2.5 text-white outline-none transition-all"
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 text-left">
+              <label className="text-sm font-medium text-zinc-300">Confirm Password</label>
+              <input 
+                type="password" 
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full bg-[#1f1f28] border border-[#1E1E2E] focus:border-primary focus:ring-1 focus:ring-primary/50 rounded-md px-4 py-2.5 text-white outline-none transition-all"
                 placeholder="••••••••"
                 required
