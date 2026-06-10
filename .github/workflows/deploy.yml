@@ -23,7 +23,10 @@ jobs:
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
           HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
         run: |
+          USERNAME=$(echo "${HF_USERNAME}" | tr -d ' \n\r')
+          TOKEN=$(echo "${HF_TOKEN}" | tr -d ' \n\r')
+          SPACE=$(echo "${HF_SPACE_NAME}" | tr -d ' \n\r')
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git subtree split --prefix backend -b hf-deploy-branch
-          git push --force https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME hf-deploy-branch:main
+          git push --force "https://${USERNAME}:${TOKEN}@huggingface.co/spaces/${USERNAME}/${SPACE}" hf-deploy-branch:main
